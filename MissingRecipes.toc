@@ -11,4 +11,5 @@ UI/MainFrame.lua
 UI/RecipeList.lua
 UI/DetailFrame.lua
 UI/ProfessionsButton.lua
+UI/MissingRecipes.xml
 MissingRecipes.lua
