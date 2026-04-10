@@ -28,7 +28,8 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
         MissingRecipes.OnProfessionListReady()
 
     elseif event == "TRADE_SKILL_CLOSE" then
-        -- (No action needed on close)
+        -- Hide the button when leaving the Recipes tab
+        MissingRecipes.OnTradeSkillClose()
     end
 end)
 

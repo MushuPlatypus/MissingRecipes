@@ -32,6 +32,30 @@ local function ProcessNextInQueue()
     C_TradeSkillUI.OpenTradeSkill(prof.skillLineID)
 end
 
+-- Builds a single recipe entry table for an unlearned recipe.
+-- Shared by both the async fetch path and the synchronous button path.
+local function BuildRecipeEntry(recipeID, profName)
+    local info = C_TradeSkillUI.GetRecipeInfo(recipeID)
+    if not info or not info.name or info.learned then return nil end
+
+    local _, skillLineName = C_TradeSkillUI.GetTradeSkillLineForRecipe(recipeID)
+    local expansionName = skillLineName and skillLineName:gsub(" [^ ]+$", "") or "Unknown"
+
+    local itemType = "Other"
+    local schematic = C_TradeSkillUI.GetRecipeSchematic(recipeID, false)
+    if schematic and schematic.outputItemID then
+        local _, iType = C_Item.GetItemInfoInstant(schematic.outputItemID)
+        if iType then itemType = iType end
+    end
+
+    return {
+        recipeID  = recipeID,
+        name      = info.name,
+        expansion = expansionName,
+        itemType  = itemType,
+    }
+end
+
 -- Called by the event frame on TRADE_SKILL_LIST_UPDATE.
 -- Reads the currently open profession's recipe list and filters unlearned ones.
 function MissingRecipes.OnTradeSkillListUpdate()
@@ -50,27 +74,10 @@ function MissingRecipes.OnTradeSkillListUpdate()
     local recipeIDs = C_TradeSkillUI.GetFilteredRecipeIDs()
     local unlearned = 0
     for _, recipeID in ipairs(recipeIDs) do
-        local info = C_TradeSkillUI.GetRecipeInfo(recipeID)
-        -- Only include recipes the character has not yet learned.
-        if info and info.name and not info.learned then
+        local entry = BuildRecipeEntry(recipeID)
+        if entry then
             unlearned = unlearned + 1
-            -- GetTradeSkillLineForRecipe returns: tradeSkillID, skillLineName (expansion), parentTradeSkillID
-            -- skillLineName includes the profession (e.g., "Classic Tailoring"), so strip the profession suffix
-            local tradeSkillID, skillLineName, parentSkillID = C_TradeSkillUI.GetTradeSkillLineForRecipe(recipeID)
-            local expansionName = skillLineName and skillLineName:gsub(" [^ ]+$", "") or "Unknown"
-            -- Get item type from output item
-            local itemType = "Other"
-            local schematic = C_TradeSkillUI.GetRecipeSchematic(recipeID, false)
-            if schematic and schematic.outputItemID then
-                local _, iType = C_Item.GetItemInfoInstant(schematic.outputItemID)
-                if iType then itemType = iType end
-            end
-            table.insert(fetchResults[prof.name], {
-                recipeID = recipeID,
-                name = info.name,
-                expansion = expansionName,
-                itemType = itemType,
-            })
+            table.insert(fetchResults[prof.name], entry)
         end
     end
     if unlearned == 0 then
@@ -138,25 +145,9 @@ function MissingRecipes.ReadCurrentProfessionRecipes()
     C_TradeSkillUI.SetShowUnlearned(true)
     local recipeIDs = C_TradeSkillUI.GetFilteredRecipeIDs()
     for _, recipeID in ipairs(recipeIDs) do
-        local info = C_TradeSkillUI.GetRecipeInfo(recipeID)
-        if info and info.name and not info.learned then
-            -- GetTradeSkillLineForRecipe returns: tradeSkillID, skillLineName (expansion), parentTradeSkillID
-            -- skillLineName includes the profession (e.g., "Classic Tailoring"), so strip the profession suffix
-            local tradeSkillID, skillLineName, parentSkillID = C_TradeSkillUI.GetTradeSkillLineForRecipe(recipeID)
-            local expansionName = skillLineName and skillLineName:gsub(" [^ ]+$", "") or "Unknown"
-            -- Get item type from output item
-            local itemType = "Other"
-            local schematic = C_TradeSkillUI.GetRecipeSchematic(recipeID, false)
-            if schematic and schematic.outputItemID then
-                local _, iType = C_Item.GetItemInfoInstant(schematic.outputItemID)
-                if iType then itemType = iType end
-            end
-            table.insert(missing, {
-                recipeID = recipeID,
-                name = info.name,
-                expansion = expansionName,
-                itemType = itemType,
-            })
+        local entry = BuildRecipeEntry(recipeID)
+        if entry then
+            table.insert(missing, entry)
         end
     end
     -- Sort by expansion (newest first), then alphabetically.

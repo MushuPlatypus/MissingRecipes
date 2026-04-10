@@ -75,6 +75,19 @@ local function GetOrCreateCopyDialog()
     return dialog
 end
 
+-- Quality color/name tables — defined once at module level, reused on every detail open
+local QUALITY_COLORS = {
+    { r = 0.63, g = 0.63, b = 0.63 },  -- [1] Poor
+    { r = 1,    g = 1,    b = 1    },  -- [2] Common
+    { r = 0.12, g = 0.71, b = 0.12 },  -- [3] Uncommon
+    { r = 0,    g = 0.5,  b = 1    },  -- [4] Rare
+    { r = 0.64, g = 0.21, b = 0.93 },  -- [5] Epic
+    { r = 1,    g = 0.8,  b = 0    },  -- [6] Legendary
+    { r = 0.9,  g = 0.5,  b = 0.5  },  -- [7] Artifact
+}
+local QUALITY_NAMES = { "Poor", "Common", "Uncommon", "Rare", "Epic", "Legendary", "Artifact" }
+local BIND_NAMES    = { "BoP", "BoE", "BoA", "Quest" }
+
 -- Maps TradeskillRelativeDifficulty enum values to display info.
 -- Blizzard uses: Trivial=0, Easy=1, Moderate=2, Difficult=3, Optimal=4
 local DIFFICULTY_INFO = {
@@ -96,35 +109,24 @@ local function GetRecipeDetails(recipeID)
     -- Source text: same API used by Blizzard's crafting window (RecipeSourceButton)
     local sourceText = C_TradeSkillUI.GetRecipeSourceText(recipeID)
 
-    -- Output item info
+    -- Output item info — single GetItemInfo call captures everything needed
     local outputItemName, outputItemLink
     local outputItemQuality, outputItemBindType, isAppearanceLearned, itemClassID, itemSubClassID, isEquippable
     local outputItemID = schematic and schematic.outputItemID
     if outputItemID then
-        outputItemName, outputItemLink = C_Item.GetItemInfo(outputItemID)
-        -- Try to get quality using C_Item.GetItemQualityByID if available, otherwise use GetItemInfoInstant
-        if C_Item.GetItemQualityByID then
-            outputItemQuality = C_Item.GetItemQualityByID(outputItemID)
-        else
-            -- Fall back to getting all info and extracting quality
-            local itemInfo = C_Item.GetItemInfoInstant(outputItemID)
-            if itemInfo and itemInfo.quality then
-                outputItemQuality = itemInfo.quality
-            end
-        end
-        
-        -- Get item class, subclass, and equipLoc using the item link
-        if outputItemLink then
-            local itemName, itemLink, rarity, level, minLevel, itemType, itemSubType = C_Item.GetItemInfo(outputItemLink)
-            if itemType then
-                itemClassID = itemType
-                itemSubClassID = itemSubType
-            end
-        end
-
-        -- C_Item.GetItemInfoInstant returns: itemID, itemType, itemSubType, itemEquipLoc, icon, classID, subClassID
-        local _, _, _, equipLoc = C_Item.GetItemInfoInstant(outputItemID)
-        isEquippable = equipLoc and equipLoc ~= "" and equipLoc ~= "INVTYPE_NON_EQUIP" and equipLoc ~= "INVTYPE_NON_EQUIP_IGNORE"
+        -- C_Item.GetItemInfo returns:
+        -- itemName, itemLink, itemRarity, itemLevel, itemMinLevel, itemType, itemSubType,
+        -- itemStackCount, itemEquipLoc, itemIcon, itemSellPrice, itemClassID, itemSubClassID,
+        -- bindType, expacID, itemSetID, isCraftingReagent
+        local itemName, itemLink, itemRarity, _, _, itemType, itemSubType, _, itemEquipLoc, _, _, _, _, bindType =
+            C_Item.GetItemInfo(outputItemID)
+        outputItemName    = itemName
+        outputItemLink    = itemLink
+        outputItemQuality = itemRarity
+        outputItemBindType = bindType
+        itemClassID       = itemType
+        itemSubClassID    = itemSubType
+        isEquippable      = itemEquipLoc and itemEquipLoc ~= "" and itemEquipLoc ~= "INVTYPE_NON_EQUIP" and itemEquipLoc ~= "INVTYPE_NON_EQUIP_IGNORE"
 
         -- Only check transmog for equippable items — non-equippable items have no appearance
         if isEquippable and outputItemLink then
@@ -168,19 +170,18 @@ local function GetRecipeDetails(recipeID)
         numSkillUps        = info.numSkillUps or 0,
 
         -- Output
-        outputItemID       = outputItemID,
-        outputItemName     = outputItemName,
-        outputItemLink     = outputItemLink,
-        outputItemQuality  = outputItemQuality,
-        outputItemBindType = outputItemBindType,
-        itemClassID        = itemClassID,
-        itemSubClassID     = itemSubClassID,
+        outputItemID        = outputItemID,
+        outputItemName      = outputItemName,
+        outputItemLink      = outputItemLink,
+        outputItemQuality   = outputItemQuality,
+        outputItemBindType  = outputItemBindType,
+        itemClassID         = itemClassID,
+        itemSubClassID      = itemSubClassID,
         isAppearanceLearned = isAppearanceLearned,
-        isEquippable       = isEquippable,
-        quantityMin        = schematic and schematic.quantityMin or 0,
-        quantityMax        = schematic and schematic.quantityMax or 0,
-        recipeType         = schematic and schematic.recipeType,
-        maxQuality         = info.maxQuality,
+        isEquippable        = isEquippable,
+        quantityMin         = schematic and schematic.quantityMin or 0,
+        quantityMax         = schematic and schematic.quantityMax or 0,
+        maxQuality          = info.maxQuality,
 
         -- XP / levels
         currentRecipeExperience   = info.currentRecipeExperience,
@@ -189,14 +190,6 @@ local function GetRecipeDetails(recipeID)
 
         -- Source
         sourceText = sourceText,
-
-        -- Flags
-        favorite           = info.favorite or false,
-        firstCraft         = info.firstCraft or false,
-        supportsQualities  = info.supportsQualities,
-        isEnchantingRecipe = info.isEnchantingRecipe,
-        isSalvageRecipe    = info.isSalvageRecipe,
-        isGatheringRecipe  = info.isGatheringRecipe,
     }
 end
 
@@ -478,20 +471,7 @@ function MissingRecipes.ShowRecipeDetail(recipeID)
     AddSeparator()
     AddHeader("Output")
     
-    -- Compute rarity color upfront for use in AddItemLink
-    local qualityColor = nil
-    if details.outputItemQuality and type(details.outputItemQuality) == "number" then
-        local qualityColors = {
-            { r = 0.63, g = 0.63, b = 0.63 },  -- Poor (grey)
-            { r = 1,    g = 1,    b = 1    },  -- Common (white)
-            { r = 0.12, g = 0.71, b = 0.12 },  -- Uncommon (green)
-            { r = 0,    g = 0.5,  b = 1    },  -- Rare (blue)
-            { r = 0.64, g = 0.21, b = 0.93 },  -- Epic (purple)
-            { r = 1,    g = 0.8,  b = 0    },  -- Legendary (orange)
-            { r = 0.9,  g = 0.5,  b = 0.5  },  -- Artifact (light red)
-        }
-        qualityColor = qualityColors[details.outputItemQuality + 1]
-    end
+    local qualityColor = details.outputItemQuality and QUALITY_COLORS[details.outputItemQuality + 1] or nil
     
     if details.outputItemLink then
         AddItemLink("Item", details.outputItemLink, details.outputItemName, details.isEquippable, qualityColor)
@@ -509,27 +489,14 @@ function MissingRecipes.ShowRecipeDetail(recipeID)
     end
     
     -- Display item quality/rarity
-    if details.outputItemQuality and type(details.outputItemQuality) == "number" then
-        local qualityNames = { "Poor", "Common", "Uncommon", "Rare", "Epic", "Legendary", "Artifact" }
-        local qualityName = qualityNames[details.outputItemQuality + 1] or "Unknown"
-        local qualityColors = {
-            { r = 0.63, g = 0.63, b = 0.63 },  -- Poor (grey)
-            { r = 1,    g = 1,    b = 1    },  -- Common (white)
-            { r = 0.12, g = 0.71, b = 0.12 },  -- Uncommon (green)
-            { r = 0,    g = 0.5,  b = 1    },  -- Rare (blue)
-            { r = 0.64, g = 0.21, b = 0.93 },  -- Epic (purple)
-            { r = 1,    g = 0.8,  b = 0    },  -- Legendary (orange)
-            { r = 0.9,  g = 0.5,  b = 0.5  },  -- Artifact (light red)
-        }
-        local color = qualityColors[details.outputItemQuality + 1] or { r = 1, g = 1, b = 1 }
-        AddLine("Rarity", qualityName, color)
+    if details.outputItemQuality then
+        AddLine("Rarity", QUALITY_NAMES[details.outputItemQuality + 1] or "Unknown",
+            QUALITY_COLORS[details.outputItemQuality + 1] or MissingRecipes.COLOR_WHITE)
     end
-    
+
     -- Display bind type
     if details.outputItemBindType then
-        local bindNames = { "BoP", "BoE", "BoA", "Quest" }
-        local bindName = bindNames[details.outputItemBindType + 1] or "Unknown"
-        AddLine("Bind Type", bindName)
+        AddLine("Bind Type", BIND_NAMES[details.outputItemBindType + 1] or "Unknown")
     end
     
     -- Display transmog appearance status

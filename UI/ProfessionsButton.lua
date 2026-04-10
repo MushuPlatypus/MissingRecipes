@@ -25,6 +25,18 @@ function MissingRecipes.OnProfessionListReady()
     end
 end
 
+-- Updates button visibility based on whether CraftingPage is active.
+local function UpdateButtonVisibility()
+    if not button then return end
+    
+    -- Only show button if CraftingPage (Recipes tab) is visible
+    if ProfessionsFrame and ProfessionsFrame.CraftingPage and ProfessionsFrame.CraftingPage:IsShown() then
+        button:Show()
+    else
+        button:Hide()
+    end
+end
+
 -- Called when the player clicks the injected button.
 local function OnButtonClick()
     -- Prefer cached info; try a live read as last resort.
@@ -50,22 +62,19 @@ local function OnButtonClick()
     MissingRecipes.PopulateList({ [profName] = missing })
 end
 
--- Injects the button into ProfessionsFrame.
+-- Injects the button into the CraftingPage frame.
 -- Called once; subsequent TRADE_SKILL_SHOW events are ignored.
 local function InjectButton()
     if buttonInjected then return end
-    -- ProfessionsFrame is lazily loaded; bail if it doesn't exist yet
-    -- (OnTradeSkillShow will be called again next time the window opens).
     if not ProfessionsFrame then return end
+    if not ProfessionsFrame.CraftingPage then return end
 
-    button = CreateFrame("Button", "MissingRecipesProfButton", ProfessionsFrame, "GameMenuButtonTemplate")
-    button:SetSize(130, 22)
-    -- Anchor below the ProfessionsFrame title bar, to the top-right.
-    -- Adjust offsets here if the button overlaps existing UI elements.
-    button:SetPoint("BOTTOMLEFT", ProfessionsFrame, "BOTTOMLEFT", 340, 0)
+    button = CreateFrame("Button", "MissingRecipesProfButton", ProfessionsFrame.CraftingPage, "GameMenuButtonTemplate")
+    button:SetSize(130, 23)
+    button:SetPoint("BOTTOM", ProfessionsFrame.CraftingPage, "BOTTOM", -122, 7)
     button:SetText("Missing Recipes")
     button:SetScript("OnClick", OnButtonClick)
-
+    
     buttonInjected = true
 end
 
@@ -78,5 +87,15 @@ function MissingRecipes.OnTradeSkillShow()
     cachedSkillLineID = nil
 
     -- Small defer so ProfessionsFrame finishes building before we attach to it.
-    C_Timer.After(0, InjectButton)
+    C_Timer.After(0, function()
+        InjectButton()
+        UpdateButtonVisibility()
+    end)
+end
+
+-- Called by MissingRecipes.lua on TRADE_SKILL_CLOSE.
+-- Hides the button when leaving the Recipes tab.
+function MissingRecipes.OnTradeSkillClose()
+    UpdateButtonVisibility()
+    -- Don't reset buttonInjected; button stays parented to CraftingPage
 end
