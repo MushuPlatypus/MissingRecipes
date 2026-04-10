@@ -98,7 +98,7 @@ local function GetRecipeDetails(recipeID)
 
     -- Output item info
     local outputItemName, outputItemLink
-    local outputItemQuality, outputItemBindType, isAppearanceLearned, itemClassID, itemSubClassID
+    local outputItemQuality, outputItemBindType, isAppearanceLearned, itemClassID, itemSubClassID, isEquippable
     local outputItemID = schematic and schematic.outputItemID
     if outputItemID then
         outputItemName, outputItemLink = C_Item.GetItemInfo(outputItemID)
@@ -124,7 +124,7 @@ local function GetRecipeDetails(recipeID)
 
         -- C_Item.GetItemInfoInstant returns: itemID, itemType, itemSubType, itemEquipLoc, icon, classID, subClassID
         local _, _, _, equipLoc = C_Item.GetItemInfoInstant(outputItemID)
-        local isEquippable = equipLoc and equipLoc ~= "" and equipLoc ~= "INVTYPE_NON_EQUIP" and equipLoc ~= "INVTYPE_NON_EQUIP_IGNORE"
+        isEquippable = equipLoc and equipLoc ~= "" and equipLoc ~= "INVTYPE_NON_EQUIP" and equipLoc ~= "INVTYPE_NON_EQUIP_IGNORE"
 
         -- Only check transmog for equippable items — non-equippable items have no appearance
         if isEquippable and outputItemLink then
@@ -176,6 +176,7 @@ local function GetRecipeDetails(recipeID)
         itemClassID        = itemClassID,
         itemSubClassID     = itemSubClassID,
         isAppearanceLearned = isAppearanceLearned,
+        isEquippable       = isEquippable,
         quantityMin        = schematic and schematic.quantityMin or 0,
         quantityMax        = schematic and schematic.quantityMax or 0,
         recipeType         = schematic and schematic.recipeType,
@@ -365,7 +366,7 @@ function MissingRecipes.ShowRecipeDetail(recipeID)
         yOffset = yOffset + math.max(lbl:GetHeight(), btn:GetHeight()) + 4
     end
 
-    local function AddItemLink(labelText, itemLink, itemName)
+    local function AddItemLink(labelText, itemLink, itemName, isEquippable, qualityColor)
         local lbl = content:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         lbl:SetWidth(contentWidth * 0.42)
         lbl:SetPoint("TOPLEFT", content, "TOPLEFT", 5, -yOffset)
@@ -381,41 +382,53 @@ function MissingRecipes.ShowRecipeDetail(recipeID)
         btn:SetHeight(20)
         btn:SetPoint("TOPLEFT", lbl, "TOPRIGHT", 4, 0)
 
-        -- Create text on the button (styled as item link - golden/yellow)
+        -- Use quality color if provided, otherwise default to gold
+        local baseColor = qualityColor or { r = 1, g = 0.82, b = 0 }
+        local hoverColor = { r = math.min(baseColor.r + 0.3, 1), g = math.min(baseColor.g + 0.3, 1), b = math.min(baseColor.b + 0.3, 1) }
+
+        -- Create text on the button (styled as item link - rarity colored)
         local btnText = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
         btnText:SetWidth(contentWidth * 0.56)
         btnText:SetPoint("TOPLEFT", 0, 0)
         btnText:SetText(itemName or itemLink)
         btnText:SetJustifyH("LEFT")
         btnText:SetWordWrap(true)
-        btnText:SetTextColor(1, 0.82, 0, 1)  -- Gold color for item links
+        btnText:SetTextColor(baseColor.r, baseColor.g, baseColor.b, 1)
 
         -- Hover effects - show item tooltip
         btn:SetScript("OnEnter", function()
-            btnText:SetTextColor(1, 1, 0.5, 1)  -- Lighter gold on hover
+            btnText:SetTextColor(hoverColor.r, hoverColor.g, hoverColor.b, 1)
             if itemLink then
                 GameTooltip:SetOwner(detailFrame, "ANCHOR_NONE")
                 GameTooltip:SetHyperlink(itemLink)
-                -- Position tooltip to the right of the detail frame
                 GameTooltip:SetPoint("TOPLEFT", detailFrame, "TOPRIGHT", 10, 0)
                 GameTooltip:Show()
+                -- Show hint in tooltip about dressing room
+                if isEquippable then
+                    GameTooltip:AddLine(" ")
+                    GameTooltip:AddLine("Click to preview in Dressing Room", 0.7, 0.7, 0.7)
+                    GameTooltip:AddLine("Right-click to link in chat", 0.7, 0.7, 0.7)
+                    GameTooltip:Show()
+                end
             end
         end)
 
         btn:SetScript("OnLeave", function()
-            btnText:SetTextColor(1, 0.82, 0, 1)  -- Back to gold
+            btnText:SetTextColor(baseColor.r, baseColor.g, baseColor.b, 1)
             GameTooltip:Hide()
         end)
 
-        -- Right-click to link in chat
+        -- Left-click: open dressing room for equippable items; Right-click: insert in chat
         btn:SetScript("OnClick", function(self, button)
-            if button == "RightButton" and itemLink then
-                -- Insert item link into chat
+            if button == "LeftButton" and isEquippable and itemLink then
+                DressUpItemLink(itemLink)
+            elseif button == "RightButton" and itemLink then
                 if ChatEdit_GetActiveWindow() then
                     ChatEdit_InsertLink(itemLink)
                 end
             end
         end)
+        btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 
         yOffset = yOffset + math.max(lbl:GetHeight(), btn:GetHeight()) + 4
     end
@@ -444,11 +457,7 @@ function MissingRecipes.ShowRecipeDetail(recipeID)
     AddHeader("Identity")
     local wowheadUrl = "https://www.wowhead.com/spell=" .. tostring(details.skillLineAbilityID)
     AddClickableLink("Recipe ID", tostring(details.recipeID), wowheadUrl)
-    AddLine("Ability ID", tostring(details.skillLineAbilityID))
-    AddLine("Expansion",  details.expansion)
-    if details.recipeType then
-        AddLine("Type", details.recipeType)
-    end
+    AddLine("Expansion", details.expansion)
 
     -- ── Difficulty / Skill ────────────────────────────────────────────────
     AddSeparator()
@@ -468,8 +477,24 @@ function MissingRecipes.ShowRecipeDetail(recipeID)
     -- ── Output ────────────────────────────────────────────────────────────
     AddSeparator()
     AddHeader("Output")
+    
+    -- Compute rarity color upfront for use in AddItemLink
+    local qualityColor = nil
+    if details.outputItemQuality and type(details.outputItemQuality) == "number" then
+        local qualityColors = {
+            { r = 0.63, g = 0.63, b = 0.63 },  -- Poor (grey)
+            { r = 1,    g = 1,    b = 1    },  -- Common (white)
+            { r = 0.12, g = 0.71, b = 0.12 },  -- Uncommon (green)
+            { r = 0,    g = 0.5,  b = 1    },  -- Rare (blue)
+            { r = 0.64, g = 0.21, b = 0.93 },  -- Epic (purple)
+            { r = 1,    g = 0.8,  b = 0    },  -- Legendary (orange)
+            { r = 0.9,  g = 0.5,  b = 0.5  },  -- Artifact (light red)
+        }
+        qualityColor = qualityColors[details.outputItemQuality + 1]
+    end
+    
     if details.outputItemLink then
-        AddItemLink("Item", details.outputItemLink, details.outputItemName)
+        AddItemLink("Item", details.outputItemLink, details.outputItemName, details.isEquippable, qualityColor)
     elseif details.outputItemName then
         AddLine("Item", details.outputItemName)
     end
@@ -548,22 +573,6 @@ function MissingRecipes.ShowRecipeDetail(recipeID)
     AddHeader("Source")
     AddLine("How to get",
         (details.sourceText and details.sourceText ~= "") and details.sourceText or "Unknown")
-
-    -- ── Flags ─────────────────────────────────────────────────────────────
-    local flags = {}
-    if details.favorite           then table.insert(flags, "* Favorite") end
-    if details.firstCraft         then table.insert(flags, "First Craft Bonus") end
-    if details.supportsQualities  then table.insert(flags, "Has Quality Tiers") end
-    if details.isEnchantingRecipe then table.insert(flags, "Enchanting") end
-    if details.isSalvageRecipe    then table.insert(flags, "Salvage") end
-    if details.isGatheringRecipe  then table.insert(flags, "Gathering") end
-    if #flags > 0 then
-        AddSeparator()
-        AddHeader("Flags")
-        for _, f in ipairs(flags) do
-            AddLine("", f)
-        end
-    end
 
     content:SetHeight(math.max(yOffset + 8, 1))
     frame.scrollFrame:SetVerticalScroll(0)
