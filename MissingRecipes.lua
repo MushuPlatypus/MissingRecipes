@@ -16,41 +16,20 @@ eventFrame:RegisterEvent("TRADE_SKILL_CLOSE")
 eventFrame:SetScript("OnEvent", function(self, event, ...)
     if event == "PLAYER_LOGIN" then
         -- Print a short confirmation in chat so the player knows the addon loaded.
-        print("|cffFFD700MissingRecipes|r v"
-            .. MissingRecipes.VERSION
-            .. " loaded. Type |cffffffff/miser|r to open.")
+        print("|cffFFD700MissingRecipes|r v" .. MissingRecipes.VERSION .. " loaded.")
 
     elseif event == "TRADE_SKILL_SHOW" then
-        if MissingRecipes.IsFetching() then
-            -- We opened the profession programmatically for scanning (/miser).
-            -- Suppress the Blizzard Professions frame so it doesn't pop up.
-            if ProfessionsFrame and ProfessionsFrame:IsShown() then
-                ProfessionsFrame:Hide()
-            end
-        else
-            -- The player opened a profession normally; inject our button.
-            MissingRecipes.OnTradeSkillShow()
-        end
+        -- The player opened a profession; inject our button.
+        MissingRecipes.OnTradeSkillShow()
 
     elseif event == "TRADE_SKILL_LIST_UPDATE" then
-        if MissingRecipes.IsFetching() then
-            -- Async profession scan in progress (/miser path).
-            MissingRecipes.OnTradeSkillListUpdate()
-        else
-            -- Player opened a profession normally; cache the profession info now
-            -- that GetBaseProfessionInfo() is guaranteed to be populated.
-            MissingRecipes.OnProfessionListReady()
-        end
+        -- Player opened a profession; cache the profession info now
+        -- that GetBaseProfessionInfo() is guaranteed to be populated.
+        MissingRecipes.OnProfessionListReady()
 
     elseif event == "TRADE_SKILL_CLOSE" then
-        MissingRecipes.OnTradeSkillClose()
+        -- (No action needed on close)
     end
 end)
 
--- ---------------------------------------------------------------------------
--- Slash command
--- ---------------------------------------------------------------------------
-SLASH_MISER1 = "/miser"
-SlashCmdList["MISER"] = function()
-    MissingRecipes.ToggleFrame()
-end
+

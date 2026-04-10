@@ -48,10 +48,12 @@ function MissingRecipes.OnTradeSkillListUpdate()
     C_TradeSkillUI.SetShowUnlearned(true)
 
     local recipeIDs = C_TradeSkillUI.GetFilteredRecipeIDs()
+    local unlearned = 0
     for _, recipeID in ipairs(recipeIDs) do
         local info = C_TradeSkillUI.GetRecipeInfo(recipeID)
         -- Only include recipes the character has not yet learned.
         if info and info.name and not info.learned then
+            unlearned = unlearned + 1
             -- GetTradeSkillLineForRecipe returns: tradeSkillID, skillLineName (expansion), parentTradeSkillID
             -- skillLineName includes the profession (e.g., "Classic Tailoring"), so strip the profession suffix
             local tradeSkillID, skillLineName, parentSkillID = C_TradeSkillUI.GetTradeSkillLineForRecipe(recipeID)
@@ -62,6 +64,11 @@ function MissingRecipes.OnTradeSkillListUpdate()
                 expansion = expansionName
             })
         end
+    end
+    if unlearned == 0 then
+        print("|cffFFD700MissingRecipes|r: No unlearned recipes found for " .. prof.name)
+    else
+        print("|cffFFD700MissingRecipes|r: Found " .. unlearned .. " unlearned recipes for " .. prof.name)
     end
 
     -- Sort by expansion (newest first via expansion ordering), then alphabetically by recipe name.
