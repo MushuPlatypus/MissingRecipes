@@ -58,10 +58,18 @@ function MissingRecipes.OnTradeSkillListUpdate()
             -- skillLineName includes the profession (e.g., "Classic Tailoring"), so strip the profession suffix
             local tradeSkillID, skillLineName, parentSkillID = C_TradeSkillUI.GetTradeSkillLineForRecipe(recipeID)
             local expansionName = skillLineName and skillLineName:gsub(" [^ ]+$", "") or "Unknown"
+            -- Get item type from output item
+            local itemType = "Other"
+            local schematic = C_TradeSkillUI.GetRecipeSchematic(recipeID, false)
+            if schematic and schematic.outputItemID then
+                local _, iType = C_Item.GetItemInfoInstant(schematic.outputItemID)
+                if iType then itemType = iType end
+            end
             table.insert(fetchResults[prof.name], {
                 recipeID = recipeID,
                 name = info.name,
-                expansion = expansionName
+                expansion = expansionName,
+                itemType = itemType,
             })
         end
     end
@@ -136,10 +144,18 @@ function MissingRecipes.ReadCurrentProfessionRecipes()
             -- skillLineName includes the profession (e.g., "Classic Tailoring"), so strip the profession suffix
             local tradeSkillID, skillLineName, parentSkillID = C_TradeSkillUI.GetTradeSkillLineForRecipe(recipeID)
             local expansionName = skillLineName and skillLineName:gsub(" [^ ]+$", "") or "Unknown"
+            -- Get item type from output item
+            local itemType = "Other"
+            local schematic = C_TradeSkillUI.GetRecipeSchematic(recipeID, false)
+            if schematic and schematic.outputItemID then
+                local _, iType = C_Item.GetItemInfoInstant(schematic.outputItemID)
+                if iType then itemType = iType end
+            end
             table.insert(missing, {
                 recipeID = recipeID,
                 name = info.name,
-                expansion = expansionName
+                expansion = expansionName,
+                itemType = itemType,
             })
         end
     end

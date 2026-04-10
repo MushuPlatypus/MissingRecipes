@@ -85,70 +85,81 @@ local function BuildRecipeTree(results)
     local dataProvider = CreateTreeDataProvider()
     local totalMissing = 0
     
-    -- Sort profession names for consistent display
-    local profNames = {}
-    for profName in pairs(results) do
-        table.insert(profNames, profName)
+    -- Merge all recipes across professions into a single flat list
+    local allRecipes = {}
+    for _, recipes in pairs(results) do
+        for _, recipe in ipairs(recipes) do
+            table.insert(allRecipes, recipe)
+        end
     end
-    table.sort(profNames)
-    
-    for _, profName in ipairs(profNames) do
-        local recipes = results[profName]
-        local profCount = #recipes
-        
-        -- Create profession category node
-        local profNode = dataProvider:Insert({
+
+    -- Group by expansion
+    local expansionGroups = {}
+    for _, recipe in ipairs(allRecipes) do
+        local exp = recipe.expansion
+        if not expansionGroups[exp] then
+            expansionGroups[exp] = {}
+        end
+        table.insert(expansionGroups[exp], recipe)
+    end
+
+    -- Sort expansions (newest first)
+    local sortedExps = {}
+    for exp in pairs(expansionGroups) do
+        table.insert(sortedExps, exp)
+    end
+    table.sort(sortedExps, function(a, b)
+        local order = MissingRecipes.EXPANSION_ORDER
+        local orderA = order[a] or 999
+        local orderB = order[b] or 999
+        return orderA > orderB
+    end)
+
+    for _, exp in ipairs(sortedExps) do
+        local expRecipes = expansionGroups[exp]
+
+        local expNode = dataProvider:Insert({
             categoryInfo = {
-                displayName = profName .. " (" .. profCount .. " missing)",
+                displayName = exp .. " (" .. #expRecipes .. ")",
                 isCategory = true,
             },
         })
-        
-        if profCount > 0 then
-            -- Group recipes by expansion
-            local expansionGroups = {}
-            for _, recipe in ipairs(recipes) do
-                local exp = recipe.expansion
-                if not expansionGroups[exp] then
-                    expansionGroups[exp] = {}
-                end
-                table.insert(expansionGroups[exp], recipe)
-            end
-            
-            -- Sort expansions by order (newest first)
-            local sortedExps = {}
-            for exp in pairs(expansionGroups) do
-                table.insert(sortedExps, exp)
-            end
-            table.sort(sortedExps, function(a, b)
-                local order = MissingRecipes.EXPANSION_ORDER
-                local orderA = order[a] or 999
-                local orderB = order[b] or 999
-                return orderA > orderB
-            end)
-            
-            -- Create expansion category nodes
-            for _, exp in ipairs(sortedExps) do
-                local expRecipes = expansionGroups[exp]
-                local expCount = #expRecipes
-                
-                local expNode = profNode:Insert({
-                    categoryInfo = {
-                        displayName = exp .. " (" .. expCount .. ")",
-                        isCategory = true,
+
+        -- Group by item type
+        local typeGroups = {}
+        for _, recipe in ipairs(expRecipes) do
+            local iType = recipe.itemType or "Other"
+            if not typeGroups[iType] then typeGroups[iType] = {} end
+            table.insert(typeGroups[iType], recipe)
+        end
+
+        -- Sort item types alphabetically, "Other" last
+        local sortedTypes = {}
+        for iType in pairs(typeGroups) do
+            table.insert(sortedTypes, iType)
+        end
+        table.sort(sortedTypes, function(a, b)
+            if a == "Other" then return false end
+            if b == "Other" then return true end
+            return a < b
+        end)
+
+        for _, iType in ipairs(sortedTypes) do
+            local typeRecipes = typeGroups[iType]
+            local typeNode = expNode:Insert({
+                categoryInfo = {
+                    displayName = iType .. " (" .. #typeRecipes .. ")",
+                    isCategory = true,
+                },
+            })
+            for _, recipe in ipairs(typeRecipes) do
+                typeNode:Insert({
+                    recipeInfo = {
+                        name = recipe.name,
+                        recipeID = recipe.recipeID,
                     },
                 })
-                
-                -- Add recipe items under expansion
-                for _, recipe in ipairs(expRecipes) do
-                    expNode:Insert({
-                        recipeInfo = {
-                            name = recipe.name,
-                            recipeID = recipe.recipeID,
-                        },
-                    })
-                    totalMissing = totalMissing + 1
-                end
+                totalMissing = totalMissing + 1
             end
         end
     end
@@ -192,7 +203,7 @@ function MissingRecipes.CreateScrollFrame(parentFrame)
 
     -- Setup TreeListView with proper padding and spacing
     local view = CreateScrollBoxListTreeListView(
-        0,      -- indent
+        14,     -- indent per depth level
         0,      -- topPadding
         0,      -- bottomPadding
         0,      -- leftPadding

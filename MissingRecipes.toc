@@ -1,8 +1,22 @@
 ## Interface: 120001
-## Title: MissingRecipes
-## Author: 
+## Title: Missing Recipes
+## Author: Bitter Widow
 ## Version: 1.0.0
-## Notes: Lists unlearned recipes for your known professions. Type /miser to open.
+## Notes: Lists unlearned recipes for your known professions.
+## IconTexture: Interface/Icons/inv_misc_book_07
+
+# https://warcraft.wiki.gg/wiki/Addon_Categories
+## Category: Professions
+## Category-deDE: Berufe
+## Category-esES: Profesiones
+## Category-esMX: Profesiones
+## Category-frFR: Métiers
+## Category-itIT: Professioni
+## Category-koKR: 전문 기술
+## Category-ptBR: Profissões
+## Category-ruRU: Профессии
+## Category-zhCN: 专业
+## Category-zhTW: 專業技能
 
 Constants.lua
 Core/Professions.lua

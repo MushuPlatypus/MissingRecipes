@@ -98,7 +98,7 @@ local function GetRecipeDetails(recipeID)
 
     -- Output item info
     local outputItemName, outputItemLink
-    local outputItemQuality, outputItemBindType, isAppearanceLearned
+    local outputItemQuality, outputItemBindType, isAppearanceLearned, itemClassID, itemSubClassID
     local outputItemID = schematic and schematic.outputItemID
     if outputItemID then
         outputItemName, outputItemLink = C_Item.GetItemInfo(outputItemID)
@@ -113,19 +113,41 @@ local function GetRecipeDetails(recipeID)
             end
         end
         
-        -- Check transmog appearance by scanning the item tooltip for text
-        -- The game shows "You haven't collected this appearance" if not learned
+        -- Get item class, subclass, and equipLoc using the item link
         if outputItemLink then
+            local itemName, itemLink, rarity, level, minLevel, itemType, itemSubType = C_Item.GetItemInfo(outputItemLink)
+            if itemType then
+                itemClassID = itemType
+                itemSubClassID = itemSubType
+            end
+        end
+
+        -- C_Item.GetItemInfoInstant returns: itemID, itemType, itemSubType, itemEquipLoc, icon, classID, subClassID
+        local _, _, _, equipLoc = C_Item.GetItemInfoInstant(outputItemID)
+        local isEquippable = equipLoc and equipLoc ~= "" and equipLoc ~= "INVTYPE_NON_EQUIP" and equipLoc ~= "INVTYPE_NON_EQUIP_IGNORE"
+
+        -- Only check transmog for equippable items — non-equippable items have no appearance
+        if isEquippable and outputItemLink then
             local tooltipData = C_TooltipInfo.GetHyperlink(outputItemLink)
             if tooltipData and tooltipData.lines then
-                isAppearanceLearned = true  -- Assume learned unless we find the "not learned" text
-                for i, line in ipairs(tooltipData.lines) do
+                -- Look for explicit appearance text in the tooltip
+                -- Items with no appearance simply won't have either line
+                local hasAppearanceLine = false
+                local notCollected = false
+                for _, line in ipairs(tooltipData.lines) do
                     local text = (line.leftText or "") .. " " .. (line.rightText or "")
                     if text:find("haven't collected this appearance") or text:find("not collected this appearance") then
-                        isAppearanceLearned = false
+                        hasAppearanceLine = true
+                        notCollected = true
                         break
+                    elseif text:find("collected this appearance") or text:find("Appearance:") then
+                        hasAppearanceLine = true
                     end
                 end
+                if hasAppearanceLine then
+                    isAppearanceLearned = not notCollected
+                end
+                -- If no appearance lines found, isAppearanceLearned stays nil (not shown)
             end
         end
     end
@@ -151,6 +173,8 @@ local function GetRecipeDetails(recipeID)
         outputItemLink     = outputItemLink,
         outputItemQuality  = outputItemQuality,
         outputItemBindType = outputItemBindType,
+        itemClassID        = itemClassID,
+        itemSubClassID     = itemSubClassID,
         isAppearanceLearned = isAppearanceLearned,
         quantityMin        = schematic and schematic.quantityMin or 0,
         quantityMax        = schematic and schematic.quantityMax or 0,
@@ -448,6 +472,15 @@ function MissingRecipes.ShowRecipeDetail(recipeID)
         AddItemLink("Item", details.outputItemLink, details.outputItemName)
     elseif details.outputItemName then
         AddLine("Item", details.outputItemName)
+    end
+    
+    -- Display item type (class)
+    if details.itemClassID then
+        local displayType = details.itemClassID
+        if details.itemSubClassID then
+            displayType = displayType .. " (" .. details.itemSubClassID .. ")"
+        end
+        AddLine("Type", displayType)
     end
     
     -- Display item quality/rarity
