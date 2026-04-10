@@ -53,11 +53,13 @@ function MissingRecipes.OnTradeSkillListUpdate()
         -- Only include recipes the character has not yet learned.
         if info and info.name and not info.learned then
             -- GetTradeSkillLineForRecipe returns: tradeSkillID, skillLineName (expansion), parentTradeSkillID
-            local _, expansionName = C_TradeSkillUI.GetTradeSkillLineForRecipe(recipeID)
+            -- skillLineName includes the profession (e.g., "Classic Tailoring"), so strip the profession suffix
+            local tradeSkillID, skillLineName, parentSkillID = C_TradeSkillUI.GetTradeSkillLineForRecipe(recipeID)
+            local expansionName = skillLineName and skillLineName:gsub(" [^ ]+$", "") or "Unknown"
             table.insert(fetchResults[prof.name], {
                 recipeID = recipeID,
                 name = info.name,
-                expansion = expansionName or "Unknown"
+                expansion = expansionName
             })
         end
     end
@@ -124,11 +126,13 @@ function MissingRecipes.ReadCurrentProfessionRecipes()
         local info = C_TradeSkillUI.GetRecipeInfo(recipeID)
         if info and info.name and not info.learned then
             -- GetTradeSkillLineForRecipe returns: tradeSkillID, skillLineName (expansion), parentTradeSkillID
-            local _, expansionName = C_TradeSkillUI.GetTradeSkillLineForRecipe(recipeID)
+            -- skillLineName includes the profession (e.g., "Classic Tailoring"), so strip the profession suffix
+            local tradeSkillID, skillLineName, parentSkillID = C_TradeSkillUI.GetTradeSkillLineForRecipe(recipeID)
+            local expansionName = skillLineName and skillLineName:gsub(" [^ ]+$", "") or "Unknown"
             table.insert(missing, {
                 recipeID = recipeID,
                 name = info.name,
-                expansion = expansionName or "Unknown"
+                expansion = expansionName
             })
         end
     end

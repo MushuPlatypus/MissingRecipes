@@ -46,15 +46,6 @@ local function BuildMainFrame()
     closeBtn:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 2, 2)
     closeBtn:SetScript("OnClick", function() frame:Hide() end)
 
-    -- Refresh button (sits to the left of the close button)
-    local refreshBtn = CreateFrame("Button", nil, frame, "GameMenuButtonTemplate")
-    refreshBtn:SetSize(80, 22)
-    refreshBtn:SetPoint("TOPRIGHT", closeBtn, "TOPLEFT", -2, 3)
-    refreshBtn:SetText("Refresh")
-    refreshBtn:SetScript("OnClick", function()
-        MissingRecipes.RefreshList()
-    end)
-
     -- Separator line below header
     local topLine = frame:CreateTexture(nil, "ARTWORK")
     topLine:SetHeight(1)

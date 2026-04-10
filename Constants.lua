@@ -20,7 +20,7 @@ MissingRecipes.CONTENT_TOP_OFFSET    = -34   -- below title + separator
 MissingRecipes.CONTENT_BOTTOM_OFFSET = 28    -- above footer + separator
 MissingRecipes.CONTENT_LEFT_PADDING  = 8
 -- Scroll frame right clearance (scrollbar width + border)
-MissingRecipes.CONTENT_RIGHT_CLEARANCE = 28
+MissingRecipes.CONTENT_RIGHT_CLEARANCE = 0
 -- Usable content width (without scrollbar area)
 MissingRecipes.CONTENT_WIDTH =
     MissingRecipes.FRAME_WIDTH
@@ -33,21 +33,22 @@ MissingRecipes.COLOR_GOLD  = { r = 1,   g = 0.82, b = 0,   a = 1 }
 MissingRecipes.COLOR_WHITE = { r = 1,   g = 1,    b = 1,   a = 1 }
 MissingRecipes.COLOR_GREY  = { r = 0.6, g = 0.6,  b = 0.6, a = 1 }
 
--- Expansion ordering (index = sort order, newest first)
+-- Expansion ordering (chronological order from oldest to newest)
 -- Lower indices sort first (display at top)
 MissingRecipes.EXPANSION_ORDER = {
-    ["The War Within"]          = 1,
-    ["Midnight"]                = 2,
-    ["Dragonflight"]            = 3,
-    ["Shadowlands"]             = 4,
-    ["Battle for Azeroth"]      = 5,
-    ["Legion"]                  = 6,
-    ["Warlords of Draenor"]     = 7,
-    ["Mists of Pandaria"]       = 8,
-    ["Cataclysm"]               = 9,
-    ["Wrath of the Lich King"]  = 10,
-    ["The Burning Crusade"]     = 11,
-    ["Classic"]                 = 12,
+    ["Classic"]                 = 1,
+    ["The Burning Crusade"]     = 2,
+    ["Northrend"]               = 3,
+    ["Wrath of the Lich King"]  = 3,
+    ["Cataclysm"]               = 4,
+    ["Mists of Pandaria"]       = 5,
+    ["Warlords of Draenor"]     = 6,
+    ["Legion"]                  = 7,
+    ["Battle for Azeroth"]      = 8,
+    ["Shadowlands"]             = 9,
+    ["Dragonflight"]            = 10,
+    ["The War Within"]          = 11,
+    ["Midnight"]                = 12,
 }
 
 -- Accordion state: tracks which expansions are collapsed/expanded per profession

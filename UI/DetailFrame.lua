@@ -98,9 +98,36 @@ local function GetRecipeDetails(recipeID)
 
     -- Output item info
     local outputItemName, outputItemLink
+    local outputItemQuality, outputItemBindType, isAppearanceLearned
     local outputItemID = schematic and schematic.outputItemID
     if outputItemID then
         outputItemName, outputItemLink = C_Item.GetItemInfo(outputItemID)
+        -- Try to get quality using C_Item.GetItemQualityByID if available, otherwise use GetItemInfoInstant
+        if C_Item.GetItemQualityByID then
+            outputItemQuality = C_Item.GetItemQualityByID(outputItemID)
+        else
+            -- Fall back to getting all info and extracting quality
+            local itemInfo = C_Item.GetItemInfoInstant(outputItemID)
+            if itemInfo and itemInfo.quality then
+                outputItemQuality = itemInfo.quality
+            end
+        end
+        
+        -- Check transmog appearance by scanning the item tooltip for text
+        -- The game shows "You haven't collected this appearance" if not learned
+        if outputItemLink then
+            local tooltipData = C_TooltipInfo.GetHyperlink(outputItemLink)
+            if tooltipData and tooltipData.lines then
+                isAppearanceLearned = true  -- Assume learned unless we find the "not learned" text
+                for i, line in ipairs(tooltipData.lines) do
+                    local text = (line.leftText or "") .. " " .. (line.rightText or "")
+                    if text:find("haven't collected this appearance") or text:find("not collected this appearance") then
+                        isAppearanceLearned = false
+                        break
+                    end
+                end
+            end
+        end
     end
 
     return {
@@ -122,6 +149,9 @@ local function GetRecipeDetails(recipeID)
         outputItemID       = outputItemID,
         outputItemName     = outputItemName,
         outputItemLink     = outputItemLink,
+        outputItemQuality  = outputItemQuality,
+        outputItemBindType = outputItemBindType,
+        isAppearanceLearned = isAppearanceLearned,
         quantityMin        = schematic and schematic.quantityMin or 0,
         quantityMax        = schematic and schematic.quantityMax or 0,
         recipeType         = schematic and schematic.recipeType,
@@ -311,6 +341,61 @@ function MissingRecipes.ShowRecipeDetail(recipeID)
         yOffset = yOffset + math.max(lbl:GetHeight(), btn:GetHeight()) + 4
     end
 
+    local function AddItemLink(labelText, itemLink, itemName)
+        local lbl = content:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        lbl:SetWidth(contentWidth * 0.42)
+        lbl:SetPoint("TOPLEFT", content, "TOPLEFT", 5, -yOffset)
+        lbl:SetText(labelText)
+        lbl:SetJustifyH("LEFT")
+        lbl:SetWordWrap(false)
+        local grey = MissingRecipes.COLOR_GREY
+        lbl:SetTextColor(grey.r, grey.g, grey.b, grey.a)
+
+        -- Create a clickable button for the item
+        local btn = CreateFrame("Button", nil, content)
+        btn:SetWidth(contentWidth * 0.56)
+        btn:SetHeight(20)
+        btn:SetPoint("TOPLEFT", lbl, "TOPRIGHT", 4, 0)
+
+        -- Create text on the button (styled as item link - golden/yellow)
+        local btnText = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        btnText:SetWidth(contentWidth * 0.56)
+        btnText:SetPoint("TOPLEFT", 0, 0)
+        btnText:SetText(itemName or itemLink)
+        btnText:SetJustifyH("LEFT")
+        btnText:SetWordWrap(true)
+        btnText:SetTextColor(1, 0.82, 0, 1)  -- Gold color for item links
+
+        -- Hover effects - show item tooltip
+        btn:SetScript("OnEnter", function()
+            btnText:SetTextColor(1, 1, 0.5, 1)  -- Lighter gold on hover
+            if itemLink then
+                GameTooltip:SetOwner(detailFrame, "ANCHOR_NONE")
+                GameTooltip:SetHyperlink(itemLink)
+                -- Position tooltip to the right of the detail frame
+                GameTooltip:SetPoint("TOPLEFT", detailFrame, "TOPRIGHT", 10, 0)
+                GameTooltip:Show()
+            end
+        end)
+
+        btn:SetScript("OnLeave", function()
+            btnText:SetTextColor(1, 0.82, 0, 1)  -- Back to gold
+            GameTooltip:Hide()
+        end)
+
+        -- Right-click to link in chat
+        btn:SetScript("OnClick", function(self, button)
+            if button == "RightButton" and itemLink then
+                -- Insert item link into chat
+                if ChatEdit_GetActiveWindow() then
+                    ChatEdit_InsertLink(itemLink)
+                end
+            end
+        end)
+
+        yOffset = yOffset + math.max(lbl:GetHeight(), btn:GetHeight()) + 4
+    end
+
     local function AddSeparator()
         local line = content:CreateTexture(nil, "ARTWORK")
         line:SetHeight(1)
@@ -360,10 +445,41 @@ function MissingRecipes.ShowRecipeDetail(recipeID)
     AddSeparator()
     AddHeader("Output")
     if details.outputItemLink then
-        AddLine("Item", details.outputItemLink)
+        AddItemLink("Item", details.outputItemLink, details.outputItemName)
     elseif details.outputItemName then
         AddLine("Item", details.outputItemName)
     end
+    
+    -- Display item quality/rarity
+    if details.outputItemQuality and type(details.outputItemQuality) == "number" then
+        local qualityNames = { "Poor", "Common", "Uncommon", "Rare", "Epic", "Legendary", "Artifact" }
+        local qualityName = qualityNames[details.outputItemQuality + 1] or "Unknown"
+        local qualityColors = {
+            { r = 0.63, g = 0.63, b = 0.63 },  -- Poor (grey)
+            { r = 1,    g = 1,    b = 1    },  -- Common (white)
+            { r = 0.12, g = 0.71, b = 0.12 },  -- Uncommon (green)
+            { r = 0,    g = 0.5,  b = 1    },  -- Rare (blue)
+            { r = 0.64, g = 0.21, b = 0.93 },  -- Epic (purple)
+            { r = 1,    g = 0.8,  b = 0    },  -- Legendary (orange)
+            { r = 0.9,  g = 0.5,  b = 0.5  },  -- Artifact (light red)
+        }
+        local color = qualityColors[details.outputItemQuality + 1] or { r = 1, g = 1, b = 1 }
+        AddLine("Rarity", qualityName, color)
+    end
+    
+    -- Display bind type
+    if details.outputItemBindType then
+        local bindNames = { "BoP", "BoE", "BoA", "Quest" }
+        local bindName = bindNames[details.outputItemBindType + 1] or "Unknown"
+        AddLine("Bind Type", bindName)
+    end
+    
+    -- Display transmog appearance status
+    if details.isAppearanceLearned ~= nil then
+        local appearanceStatus = details.isAppearanceLearned and "|cFF00FF00Appearance Learned|r" or "|cFFFF0000Appearance Not Learned|r"
+        AddLine("Transmog", appearanceStatus)
+    end
+    
     if details.itemLevel and details.itemLevel > 0 then
         AddLine("Item level", tostring(details.itemLevel))
     end

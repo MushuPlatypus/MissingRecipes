@@ -122,7 +122,9 @@ local function BuildRecipeTree(results)
             end
             table.sort(sortedExps, function(a, b)
                 local order = MissingRecipes.EXPANSION_ORDER
-                return (order[a] or 999) < (order[b] or 999)
+                local orderA = order[a] or 999
+                local orderB = order[b] or 999
+                return orderA > orderB
             end)
             
             -- Create expansion category nodes
@@ -169,6 +171,9 @@ function MissingRecipes.CreateScrollFrame(parentFrame)
         -MissingRecipes.CONTENT_RIGHT_CLEARANCE,
         MissingRecipes.CONTENT_BOTTOM_OFFSET
     )
+    
+    -- Clip any children that overflow the bounds (prevents scrollbar from showing outside)
+    outerFrame:SetClipsChildren(true)
 
     -- Add background texture (matches Professions UI)
     local background = outerFrame:CreateTexture(nil, "BACKGROUND")
@@ -177,21 +182,21 @@ function MissingRecipes.CreateScrollFrame(parentFrame)
 
     -- Create the ScrollBox (the actual scrollable content area)
     local scrollBox = CreateFrame("Frame", "MissingRecipesScrollBox", outerFrame, "WowScrollBoxList")
-    scrollBox:SetPoint("TOPLEFT", outerFrame, "TOPLEFT", 8, -8)
-    scrollBox:SetPoint("BOTTOMRIGHT", outerFrame, "BOTTOMRIGHT", -28, 8)
+    scrollBox:SetPoint("TOPLEFT", outerFrame, "TOPLEFT", 0, 0)
+    scrollBox:SetPoint("BOTTOMRIGHT", outerFrame, "BOTTOMRIGHT", -26, 0)
 
     -- Create the ScrollBar
     local scrollBar = CreateFrame("EventFrame", "MissingRecipesScrollBar", outerFrame, "MinimalScrollBar")
-    scrollBar:SetPoint("TOPLEFT", scrollBox, "TOPRIGHT", 3, 0)
-    scrollBar:SetPoint("BOTTOMLEFT", scrollBox, "BOTTOMRIGHT", 3, 0)
+    scrollBar:SetPoint("TOPLEFT", scrollBox, "TOPRIGHT", 0, 0)
+    scrollBar:SetPoint("BOTTOMLEFT", scrollBox, "BOTTOMRIGHT", 0, 0)
 
     -- Setup TreeListView with proper padding and spacing
     local view = CreateScrollBoxListTreeListView(
         0,      -- indent
-        3,      -- topPadding
-        15,     -- bottomPadding
-        8,      -- leftPadding
-        5       -- rightPadding
+        0,      -- topPadding
+        0,      -- bottomPadding
+        0,      -- leftPadding
+        0       -- rightPadding
     )
 
     -- Set the element factory to create buttons based on node data type
